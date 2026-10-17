@@ -1,0 +1,7 @@
+services:
+  app:
+    environment:
+      HOST_NAME: localhost
+      LD_CSRF_TRUSTED_ORIGINS: http://localhost:8103
+      HEFESTO_SECURE_COOKIES: "false"
+    ports: ["127.0.0.1:8103:9090"]
