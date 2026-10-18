@@ -91,10 +91,10 @@ for compose in "${COMPOSES[@]}"; do
   if jq -e '.services != null' "$rendered" >/dev/null; then
     while IFS= read -r svc; do
       [[ -z "$svc" ]] && continue
-      # Recoger los profiles declarados en el render; si contiene "tools"
-      # pertenece a un perfil opcional y se omite.
-      svc_profiles=$(jq -r --arg k "$svc" '.services[$k].profiles // [] | join(" ")' "$rendered")
-      if [[ " $svc_profiles " == *" tools "* ]]; then
+      # El contrato habla de servicios sin 'profiles': si el servicio
+      # declara cualquier perfil (tools, dev, debug, etc.), Coolify no lo
+      # levanta y se omite del chequeo.
+      if jq -e --arg k "$svc" '(.services[$k].profiles // []) | length > 0' "$rendered" >/dev/null; then
         continue
       fi
 
