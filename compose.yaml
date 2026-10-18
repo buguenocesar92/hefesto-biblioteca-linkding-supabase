@@ -41,11 +41,15 @@ services:
       LD_DB_PORT: "5432"
       LD_DB_USER: ${DB_USER:-linkding_app}
       LD_DB_PASSWORD: ${DB_PASSWORD}
-      # Por defecto el DSN lleva verify-full con CA. El operador puede
-      # sobrescribir LD_DB_OPTIONS completo para omitir sslrootcert (p. ej.
-      # con DB_SSLMODE=disable). No se anida ${DB_SSLMODE} porque Docker
-      # Compose no expande variables dentro de literales entre comillas.
-      LD_DB_OPTIONS: ${LD_DB_OPTIONS:-{"sslmode":"verify-full","sslrootcert":"/certs/ca.crt","connect_timeout":15}}
+      # Por defecto el DSN no fija sslmode ni sslrootcert; los toma de
+      # PGSSLMODE y PGSSLROOTCERT, que a su vez leen DB_SSLMODE y
+      # DB_SSLROOTCERT. Con DB_SSLMODE=verify-full libpq exige la CA
+      # montada en /certs/ca.crt; con DB_SSLMODE=disable la CA no es
+      # obligatoria. El operador puede sobrescribir LD_DB_OPTIONS completo
+      # si necesita un JSON específico.
+      LD_DB_OPTIONS: ${LD_DB_OPTIONS:-{"connect_timeout":15}}
+      PGSSLMODE: ${DB_SSLMODE:-verify-full}
+      PGSSLROOTCERT: ${DB_SSLROOTCERT:-/certs/ca.crt}
       LD_SUPERVISOR_MANAGED: "True"
       LD_DISABLE_URL_VALIDATION: "False"
       LD_ENABLE_AUTH_PROXY: "False"
