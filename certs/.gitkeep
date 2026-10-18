@@ -1,4 +1,0 @@
-# Certificados CA para conexiones Postgres con sslmode verify-full.
-# El archivo ca.crt está en .gitignore. Para Coolify (rama coolify) con
-# DB_SSLMODE=disable este directorio puede quedar vacío: el bind ./certs
-# sigue siendo válido porque existe el archivo de marcador .gitkeep.
