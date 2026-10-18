@@ -1,12 +1,11 @@
-name: hefesto-biblioteca
 x-pg: &pg
   PGHOST: ${DB_HOST:?Configurar DB_HOST}
   PGPORT: "5432"
-  PGDATABASE: postgres
+  PGDATABASE: ${DB_NAME:-postgres}
   PGUSER: ${DB_USER:-linkding_app}
   PGPASSWORD: ${DB_PASSWORD:?Configurar clave}
-  PGSSLMODE: verify-full
-  PGSSLROOTCERT: /certs/ca.crt
+  PGSSLMODE: ${DB_SSLMODE:-verify-full}
+  PGSSLROOTCERT: ${DB_SSLROOTCERT:-/certs/ca.crt}
   PGCONNECT_TIMEOUT: "15"
 services:
   preflight:
@@ -37,12 +36,12 @@ services:
       HOST_NAME: ${APP_HOST:?Configurar host sin protocolo}
       LD_CSRF_TRUSTED_ORIGINS: https://${APP_HOST}
       LD_DB_ENGINE: postgres
-      LD_DB_DATABASE: postgres
+      LD_DB_DATABASE: ${DB_NAME:-postgres}
       LD_DB_HOST: ${DB_HOST}
       LD_DB_PORT: "5432"
       LD_DB_USER: ${DB_USER:-linkding_app}
       LD_DB_PASSWORD: ${DB_PASSWORD}
-      LD_DB_OPTIONS: '{"sslmode":"verify-full","sslrootcert":"/certs/ca.crt","connect_timeout":15}'
+      LD_DB_OPTIONS: ${LD_DB_OPTIONS:-{"sslmode":"${DB_SSLMODE:-verify-full}","sslrootcert":"/certs/ca.crt","connect_timeout":15}}
       LD_SUPERVISOR_MANAGED: "True"
       LD_DISABLE_URL_VALIDATION: "False"
       LD_ENABLE_AUTH_PROXY: "False"
