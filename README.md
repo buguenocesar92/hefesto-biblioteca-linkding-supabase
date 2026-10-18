@@ -34,21 +34,24 @@ Estado: configuración revisada estáticamente. Docker, migraciones, navegación
 
 El `compose.yaml` de la rama `coolify` está pensado para importarse directo en
 Coolify como build pack Docker Compose. El validador del contrato vive en
-`scripts/coolify-check.sh` y corre en CI antes de mergear a `main` desde la
-rama `coolify`.
+`scripts/coolify-check.sh` y se ejecuta en local antes de mergear a `main`
+desde la rama `coolify` (`bash scripts/coolify-check.sh`).
 
 Variables nuevas que debe inyectar Coolify en el servicio `app`:
 
 - `DB_NAME`: nombre de la base dentro del proyecto Supabase dedicado. Por
   defecto `postgres` (uso original). Coolify debe usar la base exclusiva
   del kit, p. ej. `mvp_biblioteca`.
-- `DB_SSLMODE`: modo SSL. Por defecto `verify-full`. Con `disable` (enlace
-  directo dentro de la red Docker o sin TLS) la CA no es obligatoria y el
-  DSN no exige `sslrootcert`. Coolify también puede sobrescribir
-  `LD_DB_OPTIONS` completo si necesita un JSON específico.
-- `DB_SSLROOTCERT`: ruta al CA dentro del contenedor. Por defecto
-  `/certs/ca.crt` (se monta desde `./certs`).
-- `LD_DB_OPTIONS`: opciones adicionales del DSN. Si Coolify necesita
+- `DB_SSLMODE`: modo SSL para libpq (vía `PGSSLMODE`). Por defecto
+  `verify-full`. Con `disable` (enlace directo dentro de la red Docker o sin
+  TLS) libpq no exige `sslrootcert` y la CA no es obligatoria. Coolify
+  también puede sobrescribir `LD_DB_OPTIONS` completo si necesita un JSON
+  específico.
+- `DB_SSLROOTCERT`: ruta al CA dentro del contenedor (vía `PGSSLROOTCERT`).
+  Por defecto `/certs/ca.crt` (se monta desde `./certs`).
+- `LD_DB_OPTIONS`: opciones adicionales del DSN. Por defecto solo trae
+  `{"connect_timeout":15}`; el `sslmode` y el `sslrootcert` los toma
+  libpq de `PGSSLMODE`/`PGSSLROOTCERT`. Si Coolify necesita
   `disable` y no quiere que aparezca `sslrootcert`, lo sobrescribe completo,
   p. ej. `{"sslmode":"disable","connect_timeout":15}`.
 
@@ -63,14 +66,18 @@ inyecta, el contenedor no arranca.
 
 El certificado `certs/ca.crt` está fuera del repo. En Coolify se inyecta como
 archivo de Coolify montado en `/certs/ca.crt` (read-only). Si
-`DB_SSLMODE=disable`, basta con dejar el directorio `certs/` vacío (el
-`.gitkeep` evita que el bind `./certs:/certs:ro` falle).
+`DB_SSLMODE=disable`, basta con dejar el directorio `certs/` vacío
+(`certs/README.md` documenta qué archivo espera cada modo).
 
-Coolify pone el dominio y TLS; el servicio expone `9090` internamente. La
-app espera `Host` original y `X-Forwarded-Proto: https` (lo entrega
-`ops/custom.py`). No exponer `9090` directamente.
+Coolify pone el dominio y TLS; el servicio expone `9090` internamente.
+Traefik entrega `Host` y `X-Forwarded-Proto: https`, que `ops/custom.py`
+exige. No exponer `9090` directamente.
+
+Crear el superusuario desde la terminal de Coolify del servicio `app`:
+`python manage.py createsuperuser`.
 
 `scripts/coolify-check.sh` corre el contrato localmente:
 `bash scripts/coolify-check.sh`. Falla si el compose declara algo que Coolify
 no acepta (puertos, `container_name`, `name:` raíz fijo, `privileged`, etc.)
-o si la parametrización de la BD no se refleja en el render.
+o si la parametrización de la BD no se refleja en el render del servicio
+`app` (no del preflight).
