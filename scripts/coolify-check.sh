@@ -140,14 +140,31 @@ for compose in "${COMPOSES[@]}"; do
     done < <(jq -r '.services | keys[]' "$rendered")
   fi
 
-  # 6) supabase-pg: el render debe exponer el nombre de BD parametrizado
-  # (mvp_prueba) y sslmode disable.
+  # 6) supabase-pg: el render del servicio app debe exponer el nombre de BD
+  # parametrizado (mvp_prueba) y sslmode disable. La búsqueda se limita a
+  # .services.app.environment: de otro modo 'disable' aparece tambien en
+  # preflight.environment.PGSSLMODE y el check pasa aunque la app siga en
+  # verify-full.
   if [[ "$BD_TIPO" == "supabase-pg" ]]; then
-    if ! jq -e '.. | objects | to_entries[] | select(.value == "mvp_prueba")' "$rendered" >/dev/null; then
-      falla "$compose: el render no expone 'mvp_prueba' (ni PGDATABASE ni LD_DB_DATABASE usan DB_NAME)"
+    if ! jq -e '.services.app.environment.LD_DB_DATABASE == "mvp_prueba"' "$rendered" >/dev/null; then
+      falla "$compose: app.environment.LD_DB_DATABASE no expone 'mvp_prueba' (DB_NAME no llega al DSN de la app)"
     fi
-    if ! jq -e '.. | strings | select(. == "disable")' "$rendered" >/dev/null; then
-      falla "$compose: el render no expone 'disable' (ni PGSSLMODE ni LD_DB_OPTIONS usan DB_SSLMODE)"
+    app_sslmode=$(jq -r '.services.app.environment.PGSSLMODE // ""' "$rendered")
+    app_options=$(jq -r '.services.app.environment.LD_DB_OPTIONS // ""' "$rendered")
+    if [[ "$app_sslmode" == "disable" ]]; then
+      # sslmode disable: libpq no exige sslrootcert. Si LD_DB_OPTIONS lo
+      # declara, contradice la eleccion del operador.
+      if [[ "$app_options" == *'"sslrootcert"'* ]]; then
+        falla "$compose: app.environment.LD_DB_OPTIONS declara sslrootcert con PGSSLMODE=disable (libpq lo rechaza)"
+      fi
+    elif [[ "$app_options" == *'"sslmode":"disable"'* ]]; then
+      # sslmode disable viene del JSON de LD_DB_OPTIONS: exigir que NO haya
+      # sslrootcert dentro del mismo JSON.
+      if [[ "$app_options" == *'"sslrootcert"'* ]]; then
+        falla "$compose: app.environment.LD_DB_OPTIONS declara sslrootcert junto a sslmode=disable"
+      fi
+    else
+      falla "$compose: app.environment no expone sslmode=disable (ni PGSSLMODE ni LD_DB_OPTIONS usan DB_SSLMODE)"
     fi
   fi
 done
