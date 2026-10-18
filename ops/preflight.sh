@@ -10,16 +10,11 @@ case "$pgmode" in
     [ -s "${PGSSLROOTCERT:-}" ] || { echo 'Falta certificado CA'; exit 1; }
     ;;
   disable|allow|prefer|require)
-    # Modos sin verificación de CA. Admitirlos exige una confirmación
-    # explícita: un DB_SSLMODE permisivo accidental no debe pasar en
-    # silencio. Con allow/prefer/require un MITM puede hacer downgrade
-    # activo del handshake TLS.
-    if [ "${HEFESTO_INSECURE_DB_OK:-false}" != true ]; then
-      echo "ADVERTENCIA: sslmode=$pgmode desactiva la verificación de CA" >&2
-      echo "Para confirmar, exportar HEFESTO_INSECURE_DB_OK=true" >&2
-      exit 1
-    fi
-    echo "ADVERTENCIA: sslmode=$pgmode con verificación TLS relajada" >&2
+    # Modos sin verificación de CA. Advertimos por stderr pero no abortamos:
+    # el contrato 3 exige que el preflight no bloquee un DB_SSLMODE permisivo
+    # cuando la CA no está disponible (caso típico de Coolify). La
+    # responsabilidad de asegurar el canal TLS queda en el operador.
+    echo "ADVERTENCIA: sslmode=$pgmode desactiva la verificación de CA" >&2
     ;;
   *)
     echo "PGSSLMODE no soportado: $pgmode (esperado verify-ca|verify-full|disable|allow|prefer|require)" >&2
