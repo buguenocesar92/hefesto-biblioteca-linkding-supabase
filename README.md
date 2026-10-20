@@ -29,3 +29,55 @@ Crear etiquetas cliente-demo, referencia, pendiente. Añadir URL, título y nota
 `python3 scripts/backup.py` detiene app y workers, copia public.dump + volumen completo + configuración/secretos, valida mediante hashes y reinicia si estaba activa. Usar solo modo producción base. Esperar a terminar importaciones antes de parar. Backup contiene credenciales, tokens y URLs privadas: cifrar y guardar fuera del VPS. Guía de restauración en docs/RESTORE.md.
 
 Estado: configuración revisada estáticamente. Docker, migraciones, navegación y restauración reales pendientes de probar en infraestructura Hefesto. No se han conectado cuentas ni importado datos reales.
+
+## Despliegue en Coolify (MVP Hefesto)
+
+El `compose.yaml` de la rama `coolify` está pensado para importarse directo en
+Coolify como build pack Docker Compose. El validador del contrato vive en
+`scripts/coolify-check.sh` y se ejecuta en local antes de mergear a `main`
+desde la rama `coolify` (`bash scripts/coolify-check.sh`).
+
+Variables nuevas que debe inyectar Coolify en el servicio `app`:
+
+- `DB_NAME`: nombre de la base dentro del proyecto Supabase dedicado. Por
+  defecto `postgres` (uso original). Coolify debe usar la base exclusiva
+  del kit, p. ej. `mvp_biblioteca`.
+- `DB_SSLMODE`: modo SSL para libpq (vía `PGSSLMODE`). Por defecto
+  `verify-full`. Con `disable` (enlace directo dentro de la red Docker o sin
+  TLS) libpq no exige `sslrootcert` y la CA no es obligatoria. Coolify
+  también puede sobrescribir `LD_DB_OPTIONS` completo si necesita un JSON
+  específico.
+- `DB_SSLROOTCERT`: ruta al CA dentro del contenedor (vía `PGSSLROOTCERT`).
+  Por defecto `/certs/ca.crt` (se monta desde `./certs`).
+- `LD_DB_OPTIONS`: opciones adicionales del DSN. Por defecto solo trae
+  `{"connect_timeout":15}`; el `sslmode` y el `sslrootcert` los toma
+  libpq de `PGSSLMODE`/`PGSSLROOTCERT`. Si Coolify necesita
+  `disable` y no quiere que aparezca `sslrootcert`, lo sobrescribe completo,
+  p. ej. `{"sslmode":"disable","connect_timeout":15}`.
+
+Variables que ya existían y Coolify debe seguir inyectando: `DB_HOST`,
+`DB_USER`, `DB_PASSWORD`, `APP_HOST`, `SUPABASE_DEDICATED_CONFIRMED=true`,
+`SUPABASE_DATA_API_DISABLED=true`, `VOLUME_PREFIX`.
+
+`SUPABASE_DEDICATED_CONFIRMED` y `SUPABASE_DATA_API_DISABLED` son obligatorias
+y el `preflight` aborta si no están en `true`. El proyecto Supabase del MVP
+Hefesto es dedicado y tiene la Data API desactivada; si Coolify no las
+inyecta, el contenedor no arranca.
+
+El certificado `certs/ca.crt` está fuera del repo. En Coolify se inyecta como
+archivo de Coolify montado en `/certs/ca.crt` (read-only). Si
+`DB_SSLMODE=disable`, basta con dejar el directorio `certs/` vacío
+(`certs/README.md` documenta qué archivo espera cada modo).
+
+Coolify pone el dominio y TLS; el servicio expone `9090` internamente.
+Traefik entrega `Host` y `X-Forwarded-Proto: https`, que `ops/custom.py`
+exige. No exponer `9090` directamente.
+
+Crear el superusuario desde la terminal de Coolify del servicio `app`:
+`python manage.py createsuperuser`.
+
+`scripts/coolify-check.sh` corre el contrato localmente:
+`bash scripts/coolify-check.sh`. Falla si el compose declara algo que Coolify
+no acepta (puertos, `container_name`, `name:` raíz fijo, `privileged`, etc.)
+o si la parametrización de la BD no se refleja en el render del servicio
+`app` (no del preflight).
