@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Stub de docker para las suites bats de este kit.
+#
+# Solo existe dentro de una suite: fuera de ella falla cerrado (97) y no llama
+# a Docker. Los datos que entrega son sinteticos y los fija el entorno:
+#   STUB_RUNNING=1|0   el servicio aparece activo o no
+#   STUB_DUMP_FILE     contenido del dump de base de datos
+#   STUB_TAR_DIR       directorio que se empaqueta como tar.gz
+#   STUB_FIND_OUTPUT   salida del "find" que valida el destino vacio
+#   STUB_PSQL_OUT      respuesta de la consulta que cuenta tablas
+#   STUB_STATE_FILE    archivo con los servicios detenidos (stop/start)
+set -uo pipefail
+
+if [ "${HEFESTO_KIT_TEST:-}" != "1" ]; then
+  printf 'tests/stubs/docker: fuera de una suite (falta HEFESTO_KIT_TEST=1); no se llama a Docker.\n' >&2
+  exit 97
+fi
+
+entrada=""
+comando=""
+servicio=""
+opcion_pendiente=""
+valor_pendiente=""
+
+for arg in "$@"; do
+  if [ -n "$opcion_pendiente" ]; then
+    if [ "$opcion_pendiente" = "--entrypoint" ]; then
+      entrada="$arg"
+    fi
+    opcion_pendiente=""
+    valor_pendiente=""
+    continue
+  fi
+  case "$arg" in
+    --entrypoint)
+      opcion_pendiente="--entrypoint"
+      ;;
+    --project-directory|--project-name|--file|--env-file|--workdir|--profile|--user|--status)
+      opcion_pendiente="otro"
+      ;;
+    -f|-p)
+      opcion_pendiente="otro"
+      ;;
+    --rm|--no-deps|--detach|--quiet|--services)
+      ;;
+    -T|-d|-it|-i)
+      ;;
+    docker|compose)
+      ;;
+    -*)
+      ;;
+    *)
+      if [ -z "$comando" ]; then
+        comando="$arg"
+      elif [ -z "$servicio" ]; then
+        servicio="$arg"
+      fi
+      ;;
+  esac
+done
+
+case "$comando" in
+  version)
+    printf 'Docker Compose version v2.29.7 (stub)\n'
+    exit 0
+    ;;
+  config)
+    exit 0
+    ;;
+  ps)
+    if [ -n "${STUB_STATE_FILE:-}" ] && [ -f "${STUB_STATE_FILE}" ]; then
+      if grep -qx "$servicio" "$STUB_STATE_FILE" 2>/dev/null; then
+        exit 0
+      fi
+    fi
+    if [ "${STUB_RUNNING:-1}" = "1" ]; then
+      printf 'stubcontainer0001\n'
+    fi
+    exit 0
+    ;;
+  stop)
+    if [ -n "${STUB_STATE_FILE:-}" ]; then
+      printf '%s\n' "$servicio" >> "$STUB_STATE_FILE"
+    fi
+    exit 0
+    ;;
+  start)
+    if [ -n "${STUB_STATE_FILE:-}" ] && [ -f "${STUB_STATE_FILE}" ]; then
+      grep -v -x "$servicio" "$STUB_STATE_FILE" > "$STUB_STATE_FILE.tmp" 2>/dev/null || true
+      mv "$STUB_STATE_FILE.tmp" "$STUB_STATE_FILE"
+    fi
+    exit 0
+    ;;
+  exec)
+    if [ -n "${STUB_DUMP_FILE:-}" ] && [ -f "${STUB_DUMP_FILE}" ]; then
+      cat "$STUB_DUMP_FILE"
+    fi
+    exit 0
+    ;;
+  run)
+    case "$entrada" in
+      tar)
+        dir="${STUB_TAR_DIR:-}"
+        if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+          printf 'stub docker: falta STUB_TAR_DIR para el tar sintetico\n' >&2
+          exit 1
+        fi
+        tar -czf - -C "$dir" .
+        ;;
+      find)
+        if [ -n "${STUB_FIND_OUTPUT:-}" ]; then
+          printf '%s\n' "$STUB_FIND_OUTPUT"
+        fi
+        ;;
+      pg_dump)
+        if [ -n "${STUB_DUMP_FILE:-}" ] && [ -f "$STUB_DUMP_FILE" ]; then
+          cat "$STUB_DUMP_FILE"
+        fi
+        ;;
+      pg_restore)
+        printf -- '--\n-- PostgreSQL database dump\n--\n'
+        ;;
+      psql)
+        printf '%s\n' "${STUB_PSQL_OUT:-0}"
+        ;;
+      *)
+        ;;
+    esac
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

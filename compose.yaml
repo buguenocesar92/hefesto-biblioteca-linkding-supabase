@@ -9,7 +9,7 @@ x-pg: &pg
   PGCONNECT_TIMEOUT: "15"
 services:
   preflight:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: "no"
     environment:
       <<: *pg
@@ -18,7 +18,7 @@ services:
     volumes: [./certs:/certs:ro, ./ops:/opt/hefesto:ro]
     entrypoint: [sh, /opt/hefesto/preflight.sh]
   permissions:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: "no"
     user: "0"
     entrypoint: [sh, -ec, 'chown -R 33:33 /files; chmod 700 /files']
@@ -46,7 +46,7 @@ services:
       # DB_SSLROOTCERT. Con DB_SSLMODE=verify-full libpq exige la CA
       # montada en /certs/ca.crt; con DB_SSLMODE=disable la CA no es
       # obligatoria. El operador puede sobrescribir LD_DB_OPTIONS completo
-      # si necesita un JSON específico.
+      # si necesita un JSON especifico.
       LD_DB_OPTIONS: ${LD_DB_OPTIONS:-{"connect_timeout":15}}
       PGSSLMODE: ${DB_SSLMODE:-verify-full}
       PGSSLROOTCERT: ${DB_SSLROOTCERT:-/certs/ca.crt}
@@ -60,6 +60,11 @@ services:
       LD_REQUEST_MAX_CONTENT_LENGTH: "10485760"
       HEFESTO_SECURE_COOKIES: "true"
     expose: ["9090"]
+    # Endurecimiento minimo y sin efecto sobre el volumen de datos:
+    # el servicio escribe en el volumen `files`, que sigue siendo escritura.
+    # `read_only: true` NO se aplica: Linkding escribe tambien en /tmp y en el
+    # volumen; verificarlo exige levantar el contenedor (fuera de alcance).
+    security_opt: [no-new-privileges:true]
     healthcheck:
       test: [CMD-SHELL, 'curl -fsS -H "Host: $$HOST_NAME" http://127.0.0.1:9090/health || exit 1']
       interval: 30s
@@ -68,12 +73,12 @@ services:
       start_period: 90s
     volumes: [files:/etc/linkding/data, ./certs:/certs:ro, ./ops/custom.py:/etc/linkding/bookmarks/settings/custom.py:ro]
   dbtools:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     profiles: [tools]
     environment: *pg
     volumes: [./certs:/certs:ro, ./ops:/opt/hefesto:ro]
   filetools:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     profiles: [tools]
     user: "0"
     volumes: [files:/files]
